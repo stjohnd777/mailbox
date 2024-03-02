@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cstring>
 #include <cstdlib>
 #include <unistd.h>
 #include <chrono>
@@ -20,45 +19,61 @@ namespace fs = std::filesystem;
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 
+std::string inbox = "/data/inbox";
+std::string outbox = "/data/outbox";
 std::string errbox = "/data/errbox";
 std::string cmdbox = "/data/errbox";
 
+void RemoveFile(const string& src){
+    if (fs::exists(src)) {
+        fs::remove(src);
+        std::cout << "File '" << src << "' successfully processed and removed." << std::endl;
+    }
+}
+void MoveFile(const string& src, const string& dst){
+    fs::rename(src, dst);
+}
+void CreatErrorFile(const string& timeString, const string& imgPath,  const std::exception& e){
+    std::stringstream ss;
+    ss << errbox << "/" << timeString << "-error-" << imgPath << ".txt";
+    const std::string fileName = ss.str();
 
-void processImage(std::string imgPath, const std::string& outbox) {
+    std::ofstream outputFile(fileName);
+    outputFile << e.what() << std::endl;
+    outputFile.close();
+}
 
-    fs::path filePath = imgPath;
-    fs::path fileName = filePath.filename();
-
+std::string GetCurrentTime(){
     auto currentTimePoint = std::chrono::system_clock::now();
     std::time_t currentTime = std::chrono::system_clock::to_time_t(currentTimePoint);
     char timeString[100];
     std::strftime(timeString, sizeof(timeString), "%Y-%m-%d.%H:%M:%S", std::localtime(&currentTime));
-    std::cout << "processed timestamp: " << timeString << std::endl;
+    return timeString;
+}
+
+void processImage(const std::string& imgPath, const std::string& outbox) {
+
+    fs::path filePath = imgPath;
+    fs::path fileName = filePath.filename();
+
+    auto timeString = GetCurrentTime();
+    std::cout << "processed "<< fileName << " @ timestamp: " << timeString << std::endl;
 
     try {
         cv::Mat image = cv::imread(imgPath, cv::IMREAD_UNCHANGED);
+
         std::stringstream ss;
         ss << outbox << "/" << timeString << "-" << fileName << "-processed" << ".png";
         cv::imwrite(ss.str(), image);
 
-        if (fs::exists(imgPath)) {
-            fs::remove(imgPath);
-            std::cout << "File '" << imgPath << "' successfully processed and removed." << std::endl;
-        }
+        RemoveFile(imgPath);
+
 
     }catch(const std::exception& e){
-
         std::stringstream ss0;
         ss0 << errbox << "/" << timeString << "-" << fileName ;
         fs::rename(imgPath, ss0.str());
-
-        std::stringstream ss;
-        ss << errbox << "/" << timeString << "-error-" << imgPath << ".txt";
-        const std::string fileName = ss.str();
-
-        std::ofstream outputFile(fileName);
-        outputFile << e.what() << std::endl;
-        outputFile.close();
+        CreatErrorFile(timeString,imgPath,e);
     }
 }
 
@@ -120,8 +135,7 @@ void processEvent(int fd, const char* directoryToWatch, std::string outbox) {
 
 #include <getopt.h>
 
-std::string inbox = "/data/inbox";
-std::string outbox = "/data/outbox";
+
 
 void handleCommandLineOptions(int argc, char** argv){
     std::string processing;
@@ -152,6 +166,12 @@ void handleCommandLineOptions(int argc, char** argv){
     }
 }
 
+/**
+ * Shuts the system down by polling a cmd directoru
+ * for a shutdown file, if the file 'shutdown.cmd is
+ * present it stop the main thread
+ * @return
+ */
 bool isShutDown(){
     bool isShutdown = false;
     const std::string fileName = "shutdown.cmd";
@@ -185,7 +205,9 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    // process any files in the directory when you start
+    // process any files in the directory when you start, this can happen
+    // if the system is not started and production on another system has commenced,
+    // or the was some failure, at any rate this a fault-tolerant
     for (const auto& entry : fs::directory_iterator(inbox)) {
         std::cout << entry.path() << std::endl;
         processImage(entry.path(),outbox);
@@ -193,7 +215,6 @@ int main(int argc, char** argv) {
 
 
     std::cout << "Monitoring directory: " << inbox << std::endl;
-
     while (!isShutDown()) {
         processEvent(inotifyFd, inbox.c_str(), outbox);
         processCmd();

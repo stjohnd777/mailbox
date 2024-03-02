@@ -1,8 +1,49 @@
-### This program monitors a inbox directory 
-- references as inbox
-- image files
-- image file is processed producing a result, in most cases another image. 
-result is placed into an outbox directory
+### This program monitors a inbox directory for image files
+- directory inbox
+- image file is processed and result is placed into an outbox directory
+
+### Build
+```shell
+> gti clone  git@github.com:stjohnd777/mailbox.git 
+> cd mailbox && mkdir build && cd build && cmake .. && make
+```
+## switches
+| Switch       | Description                                                                    |
+|--------------|--------------------------------------------------------------------------------|
+| -i  <dir>    | set the directory to watch defaulted to /data/inbox                            |
+| -o  <dir>    | set the directory to place result defaulted to /data/outbox is not part in chain |
+| -e  <dir>    | set the error log dir  default /data/errbox                                    |
+| -c  <dir>    | command directory default /data/cmd                                            |
+| -c  <string> | string, comma seperated processing chain  ie -p  nuc,remap,threshold,fast      |
+
+### shell
+```shell
+> build/mailbox -i /data/inbox -o /data/outbox -c /data/cmd 
+```
+
+## service
+| name      | inbox                              |
+|-----------|------------------------------------|
+| remap     | remap                              |
+| nuc       | NUC: normalized uniform correction |
+| thresh    |                                    |
+| fast      |                                    |
+| sobel     |                                    |
+| gauss     |                                    |
+| median    |                                    |
+| bilateral |                                    |
+| disparity |                                    |
+
+
+{ "service" : "nuc" , "inbox": "/data/nuc" , "outbox": "/data/nuced" }
+/data/remap
+/data/thresh
+/data/fast
+/data/sobel
+/data/guass
+/data/median
+/data/bilateral
+/data/disparity
 
 ### How Monitor File Events
 - inotify mechanism for monitoring file events.

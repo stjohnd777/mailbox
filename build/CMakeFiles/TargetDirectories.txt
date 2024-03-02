@@ -1,0 +1,3 @@
+/home/overman/dev/github/_my/mailbox/build/CMakeFiles/mailbox.dir
+/home/overman/dev/github/_my/mailbox/build/CMakeFiles/edit_cache.dir
+/home/overman/dev/github/_my/mailbox/build/CMakeFiles/rebuild_cache.dir
