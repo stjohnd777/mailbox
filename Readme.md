@@ -2,6 +2,11 @@
 - directory inbox
 - image file is processed and result is placed into an outbox directory
 
+Goals
+- Simplicity. A small example code snippet should be enough to get the feel of the library and be ready to use its basic features.
+- Extensibility. A user should be able to extend functionality of the library for collecting and storing information into logs.
+- Performance. The library should have as little performance impact on the user's application as possible.
+
 ### Build
 ```shell
 > gti clone  git@github.com:stjohnd777/mailbox.git 

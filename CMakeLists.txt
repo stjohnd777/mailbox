@@ -7,10 +7,22 @@ find_package(OpenCV REQUIRED)
 find_package(Boost REQUIRED  )
 find_package(GTest REQUIRED  )
 
+include_directories(include)
 
-add_executable(mailbox main.cpp)
 
+add_library(mailbox
+        include/macros.h
+        include/utils.h
+        include/MonitorDirectory.h
+        src/MonitorDirectory.cpp)
 target_link_libraries(mailbox PRIVATE ${OpenCV_LIBS} ${Boost_LIBRARIES})
+
+add_executable(main  main.cpp )
+target_link_libraries(main PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
+
+add_executable(sobel  sobel.cpp)
+target_link_libraries(sobel PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
+
 
 
 include(FetchContent)
@@ -27,7 +39,8 @@ enable_testing()
 add_executable(
         hello_test
         test/test.cc
-        src/MonitorDirectory.h)
+        include/MonitorDirectory.h
+        include/utils.h)
 target_link_libraries(
         hello_test
         GTest::gtest_main

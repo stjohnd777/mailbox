@@ -15,6 +15,9 @@
 #include <getopt.h>
 #include <exception>
 #include <functional>
+#include <utility>
+#include "utils.h"
+#include <boost/log/trivial.hpp>
 using namespace std;
 
 #include <sys/inotify.h>
@@ -24,29 +27,71 @@ using namespace std;
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 
-class MonitorDir {
+class InitException : public std::exception{
 public:
-    std::function < void(const std::string& imgPath, const std::string& outbox)>  processImage;
+    explicit InitException(string  msg) : msg(std::move(msg)){
+
+    }
+    const char * what () {
+        return msg.c_str();
+    }
+private :
+    string msg;
+};
+
+class MonitorDirectory {
+
 public:
-    MonitorDir(string inbox, string outbox,std::function < void(const std::string& imgPath, const std::string& outbox)>  processImage ) : inbox(inbox), outbox(outbox), processImage(processImage) {
+    MonitorDirectory(
+            const string& inbox,
+            const string& outbox,
+            std::function < cv::Mat(const std::string& imgPath)>  processImage ) : inbox(inbox), outbox(outbox), processImage(std::move(processImage)) {
+
+        if( ! fs::exists(inbox) ) {
+            auto msg = inbox + " does not exist";
+            //BOOST_LOG_TRIVIAL(fatal) <<msg;
+            throw  InitException(msg);
+        }
+        if( ! fs::exists(outbox) ) {
+            auto msg = outbox + " does not exist";
+            //BOOST_LOG_TRIVIAL(fatal) <<msg;
+            throw  InitException(msg);
+        }
+
         inotifyFd = inotify_init();
-        if (inotifyFd == -1) throw  "inotify_init failed";
+        if (inotifyFd == -1) {
+            auto msg =  "inotify_init failed";
+            //BOOST_LOG_TRIVIAL(fatal) <<msg;
+            throw InitException(msg);
+        }
 
         watchDescriptor = inotify_add_watch(inotifyFd, inbox.c_str(), IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE);
-        if (watchDescriptor == -1) throw "inotify_add_watch" ;
+        if (watchDescriptor == -1){
+            auto msg =  outbox + " inotify_add_watch failed, permissions?";
+            //BOOST_LOG_TRIVIAL(fatal) <<msg;
+            throw  InitException( msg);
+        }
     }
+
     void Start(){
-        while (!isRunning) {
+        isRunning = true;
+        while (isRunning) {
             processEvent();
         }
     }
 
-    ~MonitorDir(){
+    void Stop(){
+        isRunning = false;
+    }
+
+    ~MonitorDirectory(){
         isRunning = false;
         inotify_rm_watch(inotifyFd, watchDescriptor);
         close(inotifyFd);
     }
 private:
+
+    std::function < cv::Mat (const std::string& imgPath )>  processImage;
 
     void processEvent() {
         char buffer[EVENT_BUF_LEN];
@@ -70,21 +115,29 @@ private:
                 struct inotify_event *event = reinterpret_cast<struct inotify_event*>(&buffer[i]);
 
                 std::string imagePath = inbox + "/" + event->name;
+
+
                 if (event->len > 0) {
+                    cv::Mat ret;
                     if (event->mask & (IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE)) {
                         if (event->mask & IN_CREATE) {
                             std::cout << "File created: " << event->name << " wait for IN_CLOSE_WRITE " << std::endl;
-                            processImage(imagePath,outbox);
+                            ret = processImage(imagePath);
                         }
                         if (event->mask & IN_MOVED_TO) {
                             std::cout << "IN_MOVED_TO: File moved into inbox: " << event->name << std::endl;
-                            processImage(imagePath,outbox);
+                            ret = processImage(imagePath);
                         }
                         if (event->mask & IN_CLOSE_WRITE) {
                             std::cout << "IN_CLOSE_WRITE: File in write mode transitioned to closed: " << event->name << std::endl;
-                            processImage(imagePath,outbox);
+                            ret = processImage(imagePath);
                         }
                     }
+
+                    RemoveProcessedFile(imagePath);
+
+
+                    this->WriteToOutbox(ret);
                 }
 
                 i += EVENT_SIZE + event->len;
@@ -92,14 +145,29 @@ private:
         }
     }
 
-    bool isRunning;
+    static void RemoveProcessedFile(std::string imagePath){
+        if(fs::exists(imagePath) ) {
+            utils::RemoveFile(imagePath);
+        }
+    }
+
+    void WriteToOutbox(cv::Mat mat){
+        // LOG
+        if( ! mat.empty() ) {
+            std::stringstream ss;
+            string timeString = utils::GetCurrentTime();
+            ss << outbox << "/" << timeString << "-processed" << ".png";
+            cv::imwrite(ss.str(), mat);
+            // LOG
+        }
+        // LOG
+    }
+
+    bool isRunning = false;
     int inotifyFd ;
     int watchDescriptor;
     string inbox;
     string outbox;
-
-//	size_t EVENT_SIZE    =  sizeof(struct inotify_event);
-//	size_t EVENT_BUF_LEN =  1024 * (EVENT_SIZE + 16);
 };
 
 
