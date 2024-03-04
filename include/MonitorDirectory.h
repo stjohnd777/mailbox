@@ -39,6 +39,8 @@ private :
     string msg;
 };
 
+
+
 class MonitorDirectory {
 
 public:
@@ -47,6 +49,7 @@ public:
             const string& outbox,
             std::function < cv::Mat(const std::string& imgPath)>  processImage ) : inbox(inbox), outbox(outbox), processImage(std::move(processImage)) {
 
+        // OnInit
         if( ! fs::exists(inbox) ) {
             auto msg = inbox + " does not exist";
             //BOOST_LOG_TRIVIAL(fatal) <<msg;
