@@ -30,7 +30,7 @@ cv::Mat Edge(cv::Mat mat, int ksize =-1,int ddepth = CV_16S, int scale =1, int d
 int main( int argc, char** argv )
 {
     cv::CommandLineParser parser(argc, argv,
-                                 "{@input   |/data/pia23810.jpg|input image}"
+                                 "{@input   |/data/netpune.jpg|input image}"
                                  "{ksize   k|1|ksize (hit 'K' to increase its value at run time)}"
                                  "{scale   s|1|scale (hit 'S' to increase its value at run time)}"
                                  "{delta   d|0|delta (hit 'D' to increase its value at run time)}"
@@ -47,9 +47,9 @@ int main( int argc, char** argv )
     int delta = parser.get<int>("delta");
     int ddepth = CV_16S;
 
-    Mat image = imread( "/data/pia23810.jpg", IMREAD_COLOR );   if( image.empty() ) return EXIT_FAILURE;
+    Mat image = imread( "/data/netpune.jpg", IMREAD_COLOR );   if( image.empty() ) return EXIT_FAILURE;
 
-    imshow ("me" ,Edge(image));
+    imshow ("me" , Edge(image));
     waitKey(0);
 
     for (;;)

@@ -21,119 +21,155 @@
 #include <opencv2/core.hpp>
 #include "opencv2/highgui.hpp"
 
-#include <nlohmann/json.hpp>
-#include <utility>
-using namespace nlohmann;
-
-class SharedMemMedium {
-public:
-    std::string name;
-};
-
-void to_json(json &j, const SharedMemMedium &o){
-    j["name"] = o.name;
-}
-
-void from_json(const json &j, SharedMemMedium &o){
-    o.name = j.at("name");
-}
 
 template <typename I >
 class MonitorSharedMem : public MonitorBehavior<cv::Mat,cv::Mat> {
 
-    GETTERSETTER(key_t, key, Key)
-    GETTERSETTER(I*, sharedImage, Image)
-    GETTERSETTER(int, shmid, ShMemId)
-
 public:
 
-    cv::Mat mat;
-    cv::Mat preMat;
+    MonitorSharedMem( std:: string name){
+        m_TmpFileInbox = std::string("/tmp") + std::string("/") + name + "IN";
+        tmpFileOutSharedMemId = std::string("/tmp") + std::string("/") + name + "OUT";
+        OnInit();
+    }
+
+    cv::Mat srcMat;
+    cv::Mat preProcessedMat;
     cv::Mat processedMat;
-    cv::Mat postMat;
+    cv::Mat postProcessedMat;
 
     std::function<cv::Mat(cv::Mat)> preProcessing;
     std::function<cv::Mat(cv::Mat)> process ;
     std::function<cv::Mat(cv::Mat)> postProcessing;
 
-    void OnInit(const json &j) override {
+    void OnInit() override {
 
-        key = ftok("/tmp", 'A');
-        if (key == -1) {
-            perror("ftok");
-            exit(EXIT_FAILURE);
-        }
+        auto tupIn = GetSharedMemorySegment(m_TmpFileInbox);
+        keyIn = get<0>(tupIn);
+        m_SharedMemId_In = get<1>(tupIn);
+        m_SharedMemoryIn = get<2>(tupIn);
 
-        // Create or get the shared memory segment
-        shmid = shmget(key, sizeof(Image16U), 0666 | IPC_CREAT);
-        if (shmid == -1) {
-            perror("shmget");
-            exit(EXIT_FAILURE);
-        }
-
-        // Create a file to store the shmid
-        int fd = open("/tmp/shmid_sobel", O_CREAT | O_RDWR, 0666);
-        if (fd == -1) {
-            perror("open");
-            exit(EXIT_FAILURE);
-        }
-
-        // Write the shmid to the file
-        int shmid = shmget(key, sizeof(Image16U), 0666 | IPC_CREAT);
-        if (shmid == -1) {
-            perror("shmget");
-            exit(EXIT_FAILURE);
-        }
-
-        // Attach to the shared memory
-        sharedImage = (I*)shmat(shmid, nullptr, 0);
-        if (sharedImage == (I*)-1) {
-            perror("shmat");
-            exit(EXIT_FAILURE);
-        }
+        auto tupOut = GetSharedMemorySegment(m_TmpFileInbox);
+        keyOut = get<0>(tupOut);
+        m_SharedMemId_Out = get<1>(tupOut);
+        m_SharedMemoryOut = get<2>(tupOut);
 
     }
 
-    void invoke(){
-        cv::Mat mat = readFromSharedMemory();
-        OnPreProcess(mat);
+
+    void Invoke() override {
+        srcMat = ReadInbox();
+        preProcessedMat = OnPreProcess(srcMat);
+        processedMat = Process(preProcessedMat);
+        postProcessedMat = OnPostProcess(processedMat);
+        WriteOutBox(postProcessedMat);
     }
 
-    cv::Mat readFromSharedMemory(){
-        sharedImage = (I*) shmat(shmid, nullptr, 0);
-        if (sharedImage == (I*)-1) {
-            perror("shmat");
-            exit(EXIT_FAILURE);
-        }
-        mat = ImageToMat( *sharedImage );
-        return mat;
+
+    void WriteInBox(cv::Mat mat){
+        auto image = MatToImage<I>( mat);
+        std::memcpy(m_SharedMemoryIn, image.get(), sizeof(I));
     }
+
+    void WriteOutBox(cv::Mat mat){
+        auto image = MatToImage<I>( mat);
+        std::memcpy(m_SharedMemoryOut, image.get(), sizeof(I));
+    }
+
+    cv::Mat ReadInbox(){
+        return ImageToMat(*m_SharedMemoryIn);
+    }
+    cv::Mat ReadOutBox(){
+        return ImageToMat(*m_SharedMemoryOut);
+    }
+
+//    cv::Mat readFromSharedMemory(){
+//        m_SharedMemoryIn = (I*) shmat(m_SharedMemId_In, nullptr, 0);
+//        if (m_SharedMemoryIn == (I*)-1) {
+//            perror("shmat");
+//            exit(EXIT_FAILURE);
+//        }
+//        return ImageToMat(*m_SharedMemoryIn);
+//    }
+
 
     cv::Mat OnPreProcess(cv::Mat mat) override {
-        preMat = process != nullptr ? process(mat):mat;
-        Process(preMat.clone());
-        return preMat;
+        return  preProcessing != nullptr ? preProcessing(mat) : mat;
     }
 
     cv::Mat Process(cv::Mat mat) override{
-        processedMat = process(mat);
-        OnPostProcess(processedMat.clone());
-        return processedMat;
+        return process(mat);
     }
 
     cv::Mat OnPostProcess(cv::Mat mat) override {
-        postMat = postProcessing(mat.clone());
-        return postMat;
+        return postProcessing != nullptr ? postProcessing(mat.clone()) : mat;
     }
 
-    void writeToSharedMemory(cv::Mat mat){
-        auto image = MatToImage<I>( mat);
-        std::memcpy(sharedImage, image.get(), sizeof(Image16U));
-    }
+    void OnDisable() { }
 
+    void OnEnable()  { }
 
     void OnDestroy() override {
-        shmdt(sharedImage);
-        shmctl(shmid, IPC_RMID, nullptr);
+        shmdt(m_SharedMemoryIn);
+        shmctl(m_SharedMemId_In, IPC_RMID, nullptr);
+        utils::fs::RemoveFile(m_TmpFileInbox);
+
+        shmdt(m_SharedMemoryOut);
+        shmctl(m_SharedMemId_Out, IPC_RMID, nullptr);
+        utils::fs::RemoveFile(m_TmpFileOutbox);
     }
+
+    ~MonitorSharedMem(){
+        OnDestroy();
+    }
+
+
+private:
+
+    key_t keyIn;
+    I* m_SharedMemoryIn;
+    int m_SharedMemId_In;
+    std::string m_TmpFileInbox ;
+
+    key_t keyOut;
+    I* m_SharedMemoryOut;
+    int m_SharedMemId_Out;
+    std::string m_TmpFileOutbox;
+
+    void writeLookUpFile(std::string lookUpFile, int shmemId){
+        // write shared memory id to file
+        int fd = open(lookUpFile.c_str(), O_CREAT | O_RDWR, 0666);
+        if (fd == -1) {
+            OnDestroy();
+            throw std::runtime_error("could ot open temporary file to save shmemid " + m_TmpFileInbox );
+        }
+        write(fd, &shmemId, sizeof(shmemId));
+        close(fd);
+    }
+
+    std::tuple<key_t,int,I*> GetSharedMemorySegment(std::string lookUpFile){
+
+        key_t key = ftok("/tmp", 'A');
+        if (key == -1) {
+            throw std::runtime_error("ftok failed");
+        }
+
+        // Create or Get Shared Memory Segment
+        int shmemId = shmget(key, sizeof(I), 0666 | IPC_CREAT);
+        if (shmemId == -1) {
+            OnDestroy();
+            throw std::runtime_error(m_TmpFileInbox + ": could get write ot temp file sheared memory if  ... abort");
+        }
+
+        writeLookUpFile(lookUpFile,shmemId);
+
+        // Attach to the shared memory
+        I* sharedMemory = (I*)shmat(shmemId, nullptr, 0);
+        if (sharedMemory == (I*)-1) {
+            OnDestroy();
+            throw std::runtime_error("cshmat: " + std::to_string(shmemId));
+        }
+        return std::make_tuple(key, shmemId, sharedMemory);
+    }
+
 };

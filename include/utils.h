@@ -54,15 +54,23 @@ namespace utils {
 
         void RemoveFile(const std::string &src) {
 #if HAS_FILESYSTEM
-            if (fs::exists(src)) {
-                fs::remove(src);
-                std::cout << "File '" << src << "' successfully processed and removed." << std::endl;
+            try{
+                if (fs::exists(src)) {
+                    fs::remove(src);
+                    std::cout << "File '" << src << "' successfully processed and removed." << std::endl;
+                }
+             }catch(...) {
+                // swallow
             }
 #else
-            if (std::remove(src.c_str()) != 0) {
-                perror("Error deleting file");
-            } else {
-                std::cout << "File deleted successfully" << std::endl;
+            try {
+                if (std::remove(src.c_str()) != 0) {
+                    perror("Error deleting file");
+                } else {
+                    std::cout << "File deleted successfully" << std::endl;
+                }
+            }catch(...) {
+                // swallow
             }
 #endif
         }
@@ -137,10 +145,44 @@ namespace utils {
 
     namespace vision {
 
-        cv::Mat Edge(cv::Mat mat, int ksize = -1, int ddepth = CV_16S, int scale = 1, int delta = 0) {
+        bool IsGrayscaleSingleChannel(const cv::Mat& image) {
+            return image.channels() == 1 && (image.type() == CV_8U || image.type() == CV_16U);
+        }
+
+        cv::Mat ResizePreserveAspect(const cv::Mat& mat, int height, int width) {
+
+            if (height <= 0 || width <= 0) {
+                throw std::runtime_error("Invalid dimensions for resizing.");
+            }
+
+            // Calculate the aspect ratio of the original image
+            double aspectRatio = static_cast<double>(mat.cols) /static_cast<double>(mat.rows);
+
+            // Calculate the new COLS based on the provided ROWS while preserving the aspect ratio
+            int newWidth = static_cast<int>(height * aspectRatio);
+
+            // If the calculated COLS exceeds the provided COLS, resize based on the COLS instead
+            if (newWidth > width) {
+                newWidth = width;
+                height = static_cast<int>(width / aspectRatio);
+            }
+
+            // Resize the image using the calculated dimensions
+            cv::Mat resizedMat;
+            cv::resize(mat, resizedMat, cv::Size(newWidth, height));
+
+            return resizedMat;
+        }
+
+        cv::Mat SobelEdge(cv::Mat mat, int ksize = -1, int ddepth = CV_16S, int scale = 1, int delta = 0) {
             cv::Mat src = mat.clone();
             GaussianBlur(src, src, cv::Size(3, 3), 0, 0,cv::BORDER_DEFAULT);// Remove noise by blurring with a Gaussian filter ( kernel size = 3 )
-            cvtColor(src, src, cv::COLOR_BGR2GRAY);
+
+            if ( !IsGrayscaleSingleChannel(src) )
+            {
+                cvtColor(src, src, cv::COLOR_BGR2GRAY);
+            }
+
             cv::Mat grad_x;
             Sobel(src, grad_x, ddepth, 1, 0, ksize, scale, delta, cv::BORDER_DEFAULT);
             cv::Mat grad_y;
@@ -152,70 +194,95 @@ namespace utils {
             return src;
         }
 
-
-        cv::Mat GetImageAsGray16(cv::Mat colorImage, size_t width , size_t height ) {
+        cv::Mat GetCvMatAsGray16(cv::Mat colorImage, size_t width , size_t height ) {
             if (colorImage.empty()) {
                 throw std::runtime_error( "Error: Unable to load the color image." );
             }
             cv::Mat grayscaleImage;
-            cv::cvtColor(colorImage, grayscaleImage, cv::COLOR_BGR2GRAY);
+            if ( !IsGrayscaleSingleChannel(colorImage) ) {
+                cv::cvtColor(colorImage, grayscaleImage, cv::COLOR_BGR2GRAY);
+            }else {
+                grayscaleImage = colorImage;
+            }
 
-            cv::imshow("gray",grayscaleImage);
-            cv::waitKey(0);
+//            #if DEBUG
+//            cv::imshow("gray",grayscaleImage);
+//            cv::waitKey(0);
+//            #endif
+
+            if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
+                grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
+            }
+
+//            #if DEBUG
+//            cv::imshow("gray resized",grayscaleImage);
+//            cv::waitKey(0);
+//            #endif
 
             cv::Mat depth16Image;
             grayscaleImage.convertTo(depth16Image, CV_16U);
 
-            #if DEBUG
-            cv::imshow("16",depth16Image);
-            cv::waitKey(0);
-            #endif
+//            #if DEBUG
+//            cv::imshow("grey resized 16bits",depth16Image);
+//            cv::waitKey(0);
+//            #endif
 
             if (depth16Image.cols != width || depth16Image.rows != height) {
                 cv::resize(depth16Image, depth16Image, cv::Size(width, height));
             }
+            if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
+                grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
+                //cv::resize(grayscaleImage, grayscaleImage, cv::Size(COLS, ROWS));
+            }
 
-            #if DEBUG
-            cv::imshow("resize",depth16Image);
-            cv::waitKey(0);
-            #endif
+//            #if DEBUG
+//            cv::imshow("resize",depth16Image);
+//            cv::waitKey(0);
+//            #endif
 
             return depth16Image;
         }
-
-        cv::Mat GetImageAsGray16(std::string path, size_t width , size_t height ) {
+        cv::Mat GetCvMatAsGray16(std::string path, size_t width , size_t height ) {
             cv::Mat colorImage = cv::imread(path, cv::IMREAD_COLOR);
-            return GetImageAsGray16(colorImage, width,height);
+            return GetCvMatAsGray16(colorImage, width, height);
         }
 
-
-        cv::Mat GetImageAsGray8(cv::Mat colorImage, size_t width , size_t height ) {
+        cv::Mat GetCvMatAsGray8(cv::Mat colorImage, size_t width , size_t height ) {
             if (colorImage.empty()) {
                 throw std::runtime_error( "Error: Unable to load the color image." );
             }
+
             cv::Mat grayscaleImage;
-            cv::cvtColor(colorImage, grayscaleImage, cv::COLOR_BGR2GRAY);
-
-            #if DEBUG
-            cv::imshow("gray",grayscaleImage);
-            cv::waitKey(0);
-            #endif
-
-            if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
-                cv::resize(grayscaleImage, grayscaleImage, cv::Size(width, height));
+            if ( !IsGrayscaleSingleChannel(colorImage) ) {
+                cv::cvtColor(colorImage, grayscaleImage, cv::COLOR_BGR2GRAY);
+            }else {
+                grayscaleImage = colorImage;
             }
 
-            #if DEBUG
-            cv::imshow("resize",grayscaleImage);
-            cv::waitKey(0);
-            #endif
+//            #if DEBUG
+//            cv::imshow("gray",grayscaleImage);
+//            cv::waitKey(0);
+//            #endif
+
+            if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
+                grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
+                //cv::resize(grayscaleImage, grayscaleImage, cv::Size(COLS, ROWS));
+            }
+
+//            #if DEBUG
+//            cv::imshow("resize",grayscaleImage);
+//            cv::waitKey(0);
+//            #endif
 
             return grayscaleImage;
         }
-
-        cv::Mat GetImageAsGray8(std::string path, size_t width , size_t height ) {
-            cv::Mat colorImage = cv::imread(path, cv::IMREAD_COLOR);
-            return GetImageAsGray8(colorImage, width,height);
+        cv::Mat GetCvMAtAsGray8(std::string path, size_t width , size_t height ) {
+            cv::Mat colorImage = cv::imread(path, cv::IMREAD_UNCHANGED);
+//            #if DEBUG
+//            cv::imshow("raw",colorImage);
+//            cv::waitKey(0);
+//            #endif
+            return GetCvMatAsGray8(colorImage, width, height);
         }
 
     }

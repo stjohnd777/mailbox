@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
         if ( fs::exists(imgPath) ) {
             auto image = cv::imread(imgPath, cv::IMREAD_UNCHANGED);
             if( ! image.empty() ) {
-                ret= utils::vision::Edge(image);
+                ret= utils::vision::SobelEdge(image);
             }
         }
         return ret;

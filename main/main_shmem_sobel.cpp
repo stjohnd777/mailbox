@@ -2,9 +2,10 @@
 // Created by overman on 3/6/2024.
 //
 #include <string>
-
-#include <opencv4/opencv2/core.hpp>
-#include <opencv4/opencv2/highgui.hpp>
+#include <sstream>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
 
 #include <nlohmann/json.hpp>
 using namespace nlohmann;
@@ -13,35 +14,41 @@ using namespace nlohmann;
 #include "utils.h"
 #include "macros.h"
 
+
 int main(int argc, char** argv){
 
-    auto process = [&](cv::Mat mat){
-        return utils::vision::Edge(mat);
+    std::string path = "/data/sun.jpg";
+    if ( ! utils::fs::FileExist(path)){
+        throw std::runtime_error("file dne " + path);
+    }
+    cv::Mat raw = cv::imread(path,cv::IMREAD_GRAYSCALE);
+    if ( raw.empty()){
+        throw std::runtime_error("image empty");
+    }
+
+    MonitorSharedMem<ImageGray8> shmemMonitor("sobel");
+
+    // Set Handler
+    shmemMonitor.process = [&](cv::Mat mat){
+        return utils::vision::SobelEdge(mat);
     };
 
-    MonitorSharedMem<Image8U> shmemMonitor;
-    json j;
-    shmemMonitor.OnInit(j);
+    // Get Gray
+    cv::Mat mat = utils::vision::GetCvMAtAsGray8(path, 800, 600);
 
-    shmemMonitor.process = process;
+    // producer
+    shmemMonitor.WriteInBox(mat);
 
-    std::string path = "/data/pia23810.jpg";
-    cv::Mat mat = utils::vision::GetImageAsGray8(path,2592,1944);
+    // invoke processing chain
+    shmemMonitor.Invoke();
 
-#if DEBUG
-    cv::imshow("before",mat);
-    cv::waitKey(0);
-#endif
-
-    shmemMonitor.writeToSharedMemory(mat);
-    shmemMonitor.invoke();
-    cv::Mat after = shmemMonitor.readFromSharedMemory();
+    // read out results
+    cv::Mat after = shmemMonitor.ReadOutBox();
 
 #if DEBUG
     cv::imshow("after", after);
     cv::waitKey(0);
 #endif
-
 
     return  0;
 }

@@ -5,33 +5,29 @@
 
 #include <opencv2/core.hpp>
 #include <nlohmann/json.hpp>
+
 using namespace nlohmann;
 
 template<typename IN = cv::Mat, typename OUT = cv::Mat>
 class MonitorBehavior {
+public:
+    virtual void OnInit( ) = 0;
 
-    virtual void OnInit(const json &j) {
+    virtual void Invoke() =0 ;
 
-    }
-    virtual OUT OnPreProcess(IN mat) {
+    virtual OUT OnPreProcess(IN mat) = 0;
 
-    }
-
-    virtual OUT Process(IN img){
-    }
+    virtual OUT Process(IN img) = 0;
 
     virtual OUT OnPostProcess(IN mat) = 0;
 
+    virtual void OnDisable() = 0;
 
-    virtual void  OnDisable() {
+    virtual void OnEnable() = 0;
 
-    }
-    virtual void  OnEnable() {
-    }
+    virtual void OnDestroy() = 0;
 
-    virtual void OnDestroy() {
-    }
-
-    std::function < OUT (const IN in )>  processImage;
+public:
+    std::function<OUT(const IN in)> processImage;
 };
 

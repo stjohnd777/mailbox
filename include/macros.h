@@ -9,8 +9,8 @@
 
 #define DEBUG 1
 
-const int IMAGE_WIDTH = 2592;
-const int IMAGE_HEIGHT = 1944;
+const int IMAGE_WIDTH = 800;
+const int IMAGE_HEIGHT = 600;
 
 
 

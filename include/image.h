@@ -8,60 +8,63 @@
 
 #include "macros.h"
 
-template<typename T, size_t width=IMAGE_WIDTH, size_t height=IMAGE_HEIGHT >
-struct Image {
-    T pixels[width][height];
+template<typename T, size_t COLS=IMAGE_WIDTH, size_t ROWS=IMAGE_HEIGHT >
+struct ImageGray {
+    T atom;
+    const size_t cols = COLS;
+    const size_t rows = ROWS;
+    T pixels[ROWS][COLS];
 };
-typedef Image<uint8_t , IMAGE_WIDTH, IMAGE_HEIGHT> Image8U;
-typedef Image<uint16_t, IMAGE_WIDTH, IMAGE_HEIGHT> Image16U;
+typedef ImageGray<uint8_t , IMAGE_WIDTH, IMAGE_HEIGHT> ImageGray8;
+typedef ImageGray<uint16_t, IMAGE_WIDTH, IMAGE_HEIGHT> ImageGray16;
 
-cv::Mat ImageToMat(const Image8U& img) {
+cv::Mat ImageToMat(const ImageGray8& img) {
+    cv::Mat mat(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8U);
+    for (int row = 0; row < img.rows; ++row) {
+        for (int col = 0; col < img.cols; ++col) {
+            mat.at<uint8_t>(row, col) = img.pixels[row][col];
+        }
+    }
+    return mat;
+}
+cv::Mat ImageToMat(const ImageGray16& img) {
     cv::Mat mat(IMAGE_HEIGHT, IMAGE_WIDTH, CV_16U);
-    for (int i = 0; i < IMAGE_WIDTH; ++i) {
-        for (int j = 0; j < IMAGE_HEIGHT; ++j) {
-            mat.at<uint8_t>(j, i) = img.pixels[i][j];
+    for (int row = 0; row < img.rows; ++row) {
+        for (int col = 0; col < img.cols; ++col) {
+            mat.at<uint16_t>(row, col) = img.pixels[row][col];
         }
     }
     return mat;
 }
 
-cv::Mat ImageToMat(const Image16U& img) {
-    cv::Mat mat(IMAGE_HEIGHT, IMAGE_WIDTH, CV_16U);
-    for (int i = 0; i < IMAGE_WIDTH; ++i) {
-        for (int j = 0; j < IMAGE_HEIGHT; ++j) {
-            mat.at<uint16_t>(j, i) = img.pixels[i][j];
-        }
-    }
-    return mat;
-}
 
-std::shared_ptr<Image16U> MatToImage16U(const cv::Mat mat) {
-    std::shared_ptr<Image16U> outputImage = std::make_shared<Image16U>();
+std::shared_ptr<ImageGray16> MatToImage16U(const cv::Mat mat) {
+    std::shared_ptr<ImageGray16> outputImage = std::make_shared<ImageGray16>();
     if (mat.empty() || mat.type() != CV_16U) {
-        throw std::runtime_error( "image empty of not CV_16U");
+        throw std::runtime_error( "image empty of not CV_8U");
     }
-    if (mat.cols != IMAGE_WIDTH || mat.rows != IMAGE_HEIGHT) {
+    if (mat.cols != outputImage->cols || mat.rows != outputImage->rows) {
         throw std::runtime_error("image wrong size");
     }
-    for (int i = 0; i < IMAGE_HEIGHT; ++i) {
-        for (int j = 0; j < IMAGE_WIDTH; ++j) {
-            outputImage->pixels[j][i] = mat.at<uint16_t>(i, j);
+    for (int row = 0; row < outputImage->rows; ++row) {
+        for (int col = 0; col < outputImage->cols; ++col) {
+            outputImage->pixels[row][col] = mat.at<uint16_t>(row, col);
         }
     }
     return outputImage;
 }
 
-std::shared_ptr<Image8U> MatToImage8U(const cv::Mat mat) {
-    std::shared_ptr<Image8U> outputImage = std::make_shared<Image8U>();
+std::shared_ptr<ImageGray8> MatToImage8U(const cv::Mat mat) {
+    std::shared_ptr<ImageGray8> outputImage = std::make_shared<ImageGray8>();
     if (mat.empty() || mat.type() != CV_8U) {
-        throw std::runtime_error( "image empty of not CV_16U");
+        throw std::runtime_error( "image empty of not CV_8U");
     }
-    if (mat.cols != IMAGE_WIDTH || mat.rows != IMAGE_HEIGHT) {
+    if (mat.cols != outputImage->cols || mat.rows != outputImage->rows) {
         throw std::runtime_error("image wrong size");
     }
-    for (int i = 0; i < IMAGE_HEIGHT; ++i) {
-        for (int j = 0; j < IMAGE_WIDTH; ++j) {
-            outputImage->pixels[j][i] = mat.at<uint16_t>(i, j);
+    for (int row = 0; row < outputImage->rows; ++row) {
+        for (int col = 0; col < outputImage->cols; ++col) {
+            outputImage->pixels[row][col] = mat.at<uint8_t>(row, col);
         }
     }
     return outputImage;
@@ -71,12 +74,17 @@ template<typename I>
 std::shared_ptr<I> MatToImage(const cv::Mat mat) {
     std::shared_ptr<I> outputImage = std::make_shared<I>();
 
-    if (mat.cols != IMAGE_WIDTH || mat.rows != IMAGE_HEIGHT) {
+    if (mat.cols != outputImage->cols || mat.rows != outputImage->rows) {
         throw std::runtime_error("image wrong size");
     }
-    for (int i = 0; i < IMAGE_HEIGHT; ++i) {
-        for (int j = 0; j < IMAGE_WIDTH; ++j) {
-            outputImage->pixels[j][i] = mat.at<uint16_t>(i, j);
+    auto pixelSize = sizeof (outputImage->atom)  ;
+    for (int row = 0; row < outputImage->rows; ++row) {
+        for (int col = 0; col < outputImage->cols; ++col) {
+            if ( pixelSize == 1){
+                outputImage->pixels[row][col] = mat.at<uint8_t>(row, col);
+            }else {
+                outputImage->pixels[row][col] = mat.at<uint16_t>(row, col);
+            }
         }
     }
     return outputImage;

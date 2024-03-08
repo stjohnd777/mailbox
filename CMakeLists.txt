@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenCV CONFIG REQUIRED )
 find_package(Boost REQUIRED  )
-find_package(GTest REQUIRED  )
 find_package(nlohmann_json REQUIRED)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -13,12 +12,6 @@ message( STATUS "opencv include: ${OpenCV_INCLUDE_DIRS}" )
 message( STATUS "opencv libs dir: ${OpenCV_LIBRARY_DIRS} ")
 message( STATUS "opencv libs: ${OpenCV_LIBS} ")
 
-include_directories(/usr/include)
-link_directories(/usr/lib)
-
-#include_directories( ~/vcpkg/installed/x64-linux/include)
-#include_directories( ~/vcpkg/installed/x64-linux/include/opencv4)
-#link_directories(~/vcpkg/installed/x64-linux/lib)
 
 include_directories(include)
 
@@ -43,26 +36,29 @@ target_link_libraries(main_shmem_sobel PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LI
 #add_executable(main_shmem_boost main/main_shmem_boost.cpp)
 #target_link_libraries(main_shmem_boost PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
 
-#include(FetchContent)
-#FetchContent_Declare(
-#        googletest
-#        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-#)
-#FetchContent_MakeAvailable(googletest)
+
+
+find_package(GTest REQUIRED  )
+
+include(FetchContent)
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
 add_executable(
         hello_test
         test/test.cc
-        include/MonitorDirectory.h
-        include/utils.h
-        include/image.h
-        include/MonitorSharedMem.h
-        main/main_shmem_sobel.cpp)
+)
+
+
 target_link_libraries(
         hello_test
         GTest::gtest_main
+        mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES}
 )
 
 include(GoogleTest)
