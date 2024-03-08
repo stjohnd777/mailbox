@@ -17,12 +17,14 @@
 #include <functional>
 #include <utility>
 #include "utils.h"
-#include <boost/log/trivial.hpp>
-using namespace std;
-
 #include <sys/inotify.h>
 #include <poll.h>
 
+#include <boost/log/trivial.hpp>
+using namespace std;
+
+#include <nlohmann/json.hpp>
+using namespace nlohmann;
 
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
@@ -39,7 +41,33 @@ private :
     string msg;
 };
 
+class FileMedium {
+public:
+    std::string name;
+    std::string inbox;
+    std::string outbox;
+    std::string errbox;
+    std::string cmdbox;
+    std::string logbox;
+};
 
+void to_json(json &j, const FileMedium &o){
+    j["name"] = o.name;
+    j["inbox"] = o.inbox;
+    j["outbox"] = o.outbox;
+    j["errbox"] = o.errbox;
+    j["cmdbox"] = o.cmdbox;
+    j["logbox"] = o.logbox;
+}
+
+void from_json(const json &j, FileMedium &o){
+    o.name = j.at("name");
+    o.inbox = j.at("inbox");
+    o.outbox = j.at("outbox");
+    o.errbox = j.at("errbox");
+    o.cmdbox = j.at("cmdbox");
+    o.logbox = j.at("logbox");
+}
 
 class MonitorDirectory {
 
@@ -150,7 +178,7 @@ private:
 
     static void RemoveProcessedFile(std::string imagePath){
         if(fs::exists(imagePath) ) {
-            utils::RemoveFile(imagePath);
+            utils::fs::RemoveFile(imagePath);
         }
     }
 
@@ -172,5 +200,7 @@ private:
     string inbox;
     string outbox;
 };
+
+
 
 

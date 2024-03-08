@@ -80,13 +80,13 @@ void init_logging(){
 
 
 int main(int argc, char** argv) {
-    // my sobel composition
+    // my sobel
     auto imageProcessor =  [&](const std::string& imgPath){
         cv::Mat ret;
         if ( fs::exists(imgPath) ) {
             auto image = cv::imread(imgPath, cv::IMREAD_UNCHANGED);
             if( ! image.empty() ) {
-                ret= utils::Edge(image);
+                ret= utils::vision::Edge(image);
             }
         }
         return ret;
