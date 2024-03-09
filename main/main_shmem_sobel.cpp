@@ -3,6 +3,8 @@
 //
 #include <string>
 #include <sstream>
+#include <chrono>
+#include <thread>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
@@ -35,20 +37,34 @@ int main(int argc, char** argv){
 
     // Get Gray
     cv::Mat mat = utils::vision::GetCvMAtAsGray8(path, 800, 600);
-
     // producer
-    shmemMonitor.WriteInBox(mat);
+//    shmemMonitor.WriteInBox(mat);
+//    // invoke processing chain
+//    shmemMonitor.Invoke();
+//    // read out results
+//    cv::Mat after = shmemMonitor.ReadOutBox();
+//#if DEBUG
+//    cv::imshow("after", after);
+//    cv::waitKey(0);
+//#endif
 
-    // invoke processing chain
-    shmemMonitor.Invoke();
+    pid_t pid = fork();
 
-    // read out results
-    cv::Mat after = shmemMonitor.ReadOutBox();
+    if (pid == 0) {
+        // producer
+        std::chrono::seconds delay(1);
+        while (true) {
+            shmemMonitor.WriteInBox(mat);
+            semop(shmemMonitor.sem_in_id, nullptr, 1);
+            semop(shmemMonitor.sem_in_id, nullptr, -1);
+            std::this_thread::sleep_for(delay);
+        }
+    } else if (pid > 0) {
+        shmemMonitor.listen();
 
-#if DEBUG
-    cv::imshow("after", after);
-    cv::waitKey(0);
-#endif
+    } else {
+        return EXIT_FAILURE;
+    }
 
     return  0;
 }

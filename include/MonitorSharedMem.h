@@ -16,6 +16,11 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <cstring>
+#include <sys/sem.h>
+
+#include <iostream>
+#include <fstream>
+
 #include "macros.h"
 
 #include <opencv2/core.hpp>
@@ -27,11 +32,12 @@ class MonitorSharedMem : public MonitorBehavior<cv::Mat,cv::Mat> {
 
 public:
 
-    MonitorSharedMem( std:: string name){
-        m_TmpFileInbox = std::string("/tmp") + std::string("/") + name + "IN";
-        tmpFileOutSharedMemId = std::string("/tmp") + std::string("/") + name + "OUT";
+    MonitorSharedMem( const std:: string& name){
+        m_lookup = std::string("/tmp") + std::string("/") + name + ".txt";
         OnInit();
     }
+
+    bool isRunning;
 
     cv::Mat srcMat;
     cv::Mat preProcessedMat;
@@ -42,20 +48,47 @@ public:
     std::function<cv::Mat(cv::Mat)> process ;
     std::function<cv::Mat(cv::Mat)> postProcessing;
 
+
     void OnInit() override {
 
-        auto tupIn = GetSharedMemorySegment(m_TmpFileInbox);
+
+        sem_in_id = semget(IPC_PRIVATE, 1, 0666 | IPC_CREAT);// Create or get a semaphore for synchronization
+        semctl(sem_in_id, 0, SETVAL, 0); // Initialize the semaphore
+        auto tupIn = GetSharedMemorySegment();
         keyIn = get<0>(tupIn);
         m_SharedMemId_In = get<1>(tupIn);
         m_SharedMemoryIn = get<2>(tupIn);
 
-        auto tupOut = GetSharedMemorySegment(m_TmpFileInbox);
+
+        sem_out_id = semget(IPC_PRIVATE, 1, 0666 | IPC_CREAT);
+        semctl(sem_out_id, 0, SETVAL, 0);
+        auto tupOut = GetSharedMemorySegment();
         keyOut = get<0>(tupOut);
         m_SharedMemId_Out = get<1>(tupOut);
         m_SharedMemoryOut = get<2>(tupOut);
 
+        writeLookUpFile(m_SharedMemId_In,m_SharedMemId_Out,sem_in_id,sem_out_id);
     }
 
+    /*
+     * We use a semaphore to signal between processes.
+     * The semaphore starts with a value of 0.
+     * Some producer writes to our inbox (shared memory).
+     * The producer increments the semaphore when finished.
+     * This process waits for the semaphore to become positive before invoke() is called.
+     */
+    void listen(){
+        uint64 count = 1;
+        while( isRunning) {
+            // Wait for process finish writing
+            semop(sem_in_id, nullptr, -1);
+            Invoke();
+            cv::imshow("result " + std::to_string(count), postProcessedMat);
+            cv::waitKey(0);
+            semop(sem_in_id, nullptr, 1);
+            count++;
+        }
+    }
 
     void Invoke() override {
         srcMat = ReadInbox();
@@ -64,7 +97,6 @@ public:
         postProcessedMat = OnPostProcess(processedMat);
         WriteOutBox(postProcessedMat);
     }
-
 
     void WriteInBox(cv::Mat mat){
         auto image = MatToImage<I>( mat);
@@ -82,15 +114,6 @@ public:
     cv::Mat ReadOutBox(){
         return ImageToMat(*m_SharedMemoryOut);
     }
-
-//    cv::Mat readFromSharedMemory(){
-//        m_SharedMemoryIn = (I*) shmat(m_SharedMemId_In, nullptr, 0);
-//        if (m_SharedMemoryIn == (I*)-1) {
-//            perror("shmat");
-//            exit(EXIT_FAILURE);
-//        }
-//        return ImageToMat(*m_SharedMemoryIn);
-//    }
 
 
     cv::Mat OnPreProcess(cv::Mat mat) override {
@@ -112,11 +135,12 @@ public:
     void OnDestroy() override {
         shmdt(m_SharedMemoryIn);
         shmctl(m_SharedMemId_In, IPC_RMID, nullptr);
-        utils::fs::RemoveFile(m_TmpFileInbox);
+
 
         shmdt(m_SharedMemoryOut);
         shmctl(m_SharedMemId_Out, IPC_RMID, nullptr);
-        utils::fs::RemoveFile(m_TmpFileOutbox);
+
+        utils::fs::RemoveFile(m_lookup);
     }
 
     ~MonitorSharedMem(){
@@ -124,30 +148,34 @@ public:
     }
 
 
-private:
-
+    int sem_in_id;
     key_t keyIn;
     I* m_SharedMemoryIn;
     int m_SharedMemId_In;
-    std::string m_TmpFileInbox ;
 
+
+    int sem_out_id;
     key_t keyOut;
     I* m_SharedMemoryOut;
     int m_SharedMemId_Out;
-    std::string m_TmpFileOutbox;
 
-    void writeLookUpFile(std::string lookUpFile, int shmemId){
-        // write shared memory id to file
-        int fd = open(lookUpFile.c_str(), O_CREAT | O_RDWR, 0666);
-        if (fd == -1) {
-            OnDestroy();
-            throw std::runtime_error("could ot open temporary file to save shmemid " + m_TmpFileInbox );
-        }
-        write(fd, &shmemId, sizeof(shmemId));
-        close(fd);
+
+    std::string m_lookup;
+
+    void writeLookUpFile( int shmemInId,int shmemOutId, int semIn, int semOut){
+
+        using namespace std;
+        ofstream semFile(m_lookup);
+        semFile << "mem_in_id=" << shmemInId << endl;
+        semFile << "mem_out_id=" << shmemOutId << endl;
+        semFile << "sem_in=" << semIn << endl;
+        semFile << "sem_out=" << semOut << endl;
+        semFile.close();
+
+
     }
 
-    std::tuple<key_t,int,I*> GetSharedMemorySegment(std::string lookUpFile){
+    std::tuple<key_t,int,I*> GetSharedMemorySegment(){
 
         key_t key = ftok("/tmp", 'A');
         if (key == -1) {
@@ -158,10 +186,8 @@ private:
         int shmemId = shmget(key, sizeof(I), 0666 | IPC_CREAT);
         if (shmemId == -1) {
             OnDestroy();
-            throw std::runtime_error(m_TmpFileInbox + ": could get write ot temp file sheared memory if  ... abort");
+            throw std::runtime_error( "shmget : shared memory if  ... abort");
         }
-
-        writeLookUpFile(lookUpFile,shmemId);
 
         // Attach to the shared memory
         I* sharedMemory = (I*)shmat(shmemId, nullptr, 0);
@@ -169,6 +195,8 @@ private:
             OnDestroy();
             throw std::runtime_error("cshmat: " + std::to_string(shmemId));
         }
+
+
         return std::make_tuple(key, shmemId, sharedMemory);
     }
 
