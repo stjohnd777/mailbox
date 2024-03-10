@@ -136,6 +136,8 @@ public:
         shmdt(m_SharedMemoryIn);
         shmctl(m_SharedMemId_In, IPC_RMID, nullptr);
 
+        semctl(sem_in_id, 0, IPC_RMID);
+        semctl(sem_out_id  , 0, IPC_RMID);
 
         shmdt(m_SharedMemoryOut);
         shmctl(m_SharedMemId_Out, IPC_RMID, nullptr);

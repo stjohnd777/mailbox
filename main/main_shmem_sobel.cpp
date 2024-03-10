@@ -38,15 +38,15 @@ int main(int argc, char** argv){
     // Get Gray
     cv::Mat mat = utils::vision::GetCvMAtAsGray8(path, 800, 600);
     // producer
-//    shmemMonitor.WriteInBox(mat);
-//    // invoke processing chain
-//    shmemMonitor.Invoke();
-//    // read out results
-//    cv::Mat after = shmemMonitor.ReadOutBox();
-//#if DEBUG
-//    cv::imshow("after", after);
-//    cv::waitKey(0);
-//#endif
+    shmemMonitor.WriteInBox(mat);
+    // invoke processing chain
+    shmemMonitor.Invoke();
+    // read out results
+    cv::Mat after = shmemMonitor.ReadOutBox();
+#if DEBUG
+    cv::imshow("after", after);
+    cv::waitKey(0);
+#endif
 
     pid_t pid = fork();
 
