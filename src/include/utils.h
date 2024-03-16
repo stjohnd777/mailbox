@@ -142,6 +142,36 @@ namespace utils {
 
     namespace vision {
 
+        bool isSingleChannel8Bit(const cv::Mat& image) {
+            if (image.channels() == 1) {
+                if (image.depth() == CV_8U)
+                    return true;
+            }
+            return false;
+        }
+
+        bool isSingleChannel16Bit(const cv::Mat& image) {
+            if (image.channels() == 1) {
+                if (image.depth() == CV_16U)
+                    return true;
+            }
+            return false;
+        }
+
+        cv::Mat convert8to16(const cv::Mat& inU8) {
+            cv::Mat outU16(inU8.size(), CV_16U);
+            inU8.convertTo(outU16, CV_16U, 65535.0 / 255.0);
+            return outU16;
+        }
+
+        cv::Mat convert16to8(const cv::Mat& input16bit) {
+            cv::Mat output8bit(input16bit.size(), CV_8U);
+            double scale = 255.0 / 65535.0; // Scale factor
+            cv::convertScaleAbs(input16bit, output8bit, scale);
+            return output8bit;
+        }
+
+
         bool IsGrayscaleSingleChannel(const cv::Mat& image) {
             return image.channels() == 1 && (image.type() == CV_8U || image.type() == CV_16U);
         }
@@ -219,6 +249,52 @@ namespace utils {
 
             return depth16Image;
         }
+
+        cv::Mat GetCvMatAsGray(cv::Mat mat, size_t width , size_t height ) {
+            if (mat.empty()) {
+                throw std::runtime_error( "Error: Unable to load the color image." );
+            }
+            cv::Mat grayscaleImage;
+            if ( !IsGrayscaleSingleChannel(mat) ) {
+                cv::cvtColor(mat, grayscaleImage, cv::COLOR_BGR2GRAY);
+            }else {
+                grayscaleImage = mat;
+            }
+            if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
+                grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
+            }
+            return grayscaleImage;
+        }
+
+        cv::Mat GetCvMatAsGray16U(cv::Mat mat, size_t width , size_t height ) {
+            if (mat.empty()) {
+                throw std::runtime_error( "Error: Unable to load the color image." );
+            }
+            cv::Mat grayscaleImage;
+            if ( !IsGrayscaleSingleChannel(mat) ) {
+                cv::cvtColor(mat, grayscaleImage, cv::COLOR_BGR2GRAY);
+            }else {
+                grayscaleImage = mat;
+            }
+            if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
+                grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
+            }
+
+            if ( isSingleChannel8Bit(grayscaleImage)){
+                grayscaleImage = convert8to16(grayscaleImage);
+            }
+
+            cv::Mat bg(height, width, CV_16U, cv::Scalar(0));
+            int x = (bg.cols - grayscaleImage.cols) / 2;
+            int y = (bg.rows - grayscaleImage.rows) / 2;
+            cv::Rect roi(x, y, grayscaleImage.cols, grayscaleImage.rows);
+            cv::Mat backgroundRoi = bg(roi);
+
+            cv::add(backgroundRoi, grayscaleImage, backgroundRoi);
+            return bg;
+        }
+
+
 
         cv::Mat GetCvMatAsGray16(std::string path, size_t width , size_t height ) {
             cv::Mat colorImage = cv::imread(path, cv::IMREAD_COLOR);
