@@ -1,7 +1,6 @@
 //
 // Created by overman on 3/1/2024.
 //
-
 #pragma once
 
 #include "opencv2/imgproc.hpp"
@@ -20,8 +19,6 @@ namespace fs = std::filesystem;
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
-
-
 /**
  * Shuts the system down by polling a cmd directoru
  * for a shutdown file, if the file 'shutdown.cmd is
@@ -205,27 +202,12 @@ namespace utils {
                 grayscaleImage = colorImage;
             }
 
-//            #if DEBUG
-//            cv::imshow("gray",grayscaleImage);
-//            cv::waitKey(0);
-//            #endif
-
             if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
                 grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
             }
 
-//            #if DEBUG
-//            cv::imshow("gray resized",grayscaleImage);
-//            cv::waitKey(0);
-//            #endif
-
             cv::Mat depth16Image;
             grayscaleImage.convertTo(depth16Image, CV_16U);
-
-//            #if DEBUG
-//            cv::imshow("grey resized 16bits",depth16Image);
-//            cv::waitKey(0);
-//            #endif
 
             if (depth16Image.cols != width || depth16Image.rows != height) {
                 cv::resize(depth16Image, depth16Image, cv::Size(width, height));
@@ -235,13 +217,9 @@ namespace utils {
                 //cv::resize(grayscaleImage, grayscaleImage, cv::Size(COLS, ROWS));
             }
 
-//            #if DEBUG
-//            cv::imshow("resize",depth16Image);
-//            cv::waitKey(0);
-//            #endif
-
             return depth16Image;
         }
+
         cv::Mat GetCvMatAsGray16(std::string path, size_t width , size_t height ) {
             cv::Mat colorImage = cv::imread(path, cv::IMREAD_COLOR);
             return GetCvMatAsGray16(colorImage, width, height);
@@ -251,40 +229,23 @@ namespace utils {
             if (colorImage.empty()) {
                 throw std::runtime_error( "Error: Unable to load the color image." );
             }
-
             cv::Mat grayscaleImage;
             if ( !IsGrayscaleSingleChannel(colorImage) ) {
                 cv::cvtColor(colorImage, grayscaleImage, cv::COLOR_BGR2GRAY);
             }else {
                 grayscaleImage = colorImage;
             }
-
-//            #if DEBUG
-//            cv::imshow("gray",grayscaleImage);
-//            cv::waitKey(0);
-//            #endif
-
             if (grayscaleImage.cols != width || grayscaleImage.rows != height) {
                 grayscaleImage = ResizePreserveAspect(grayscaleImage,height,width);
                 //cv::resize(grayscaleImage, grayscaleImage, cv::Size(COLS, ROWS));
             }
-
-//            #if DEBUG
-//            cv::imshow("resize",grayscaleImage);
-//            cv::waitKey(0);
-//            #endif
-
             return grayscaleImage;
         }
+
         cv::Mat GetCvMAtAsGray8(std::string path, size_t width , size_t height ) {
             cv::Mat colorImage = cv::imread(path, cv::IMREAD_UNCHANGED);
-//            #if DEBUG
-//            cv::imshow("raw",colorImage);
-//            cv::waitKey(0);
-//            #endif
             return GetCvMatAsGray8(colorImage, width, height);
         }
 
     }
-
 }

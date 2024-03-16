@@ -13,29 +13,32 @@ message( STATUS "opencv libs dir: ${OpenCV_LIBRARY_DIRS} ")
 message( STATUS "opencv libs: ${OpenCV_LIBS} ")
 
 
-include_directories(include)
+include_directories(src/include)
 
-add_library(mailbox
-        include/macros.h
-        include/utils.h
-        include/MonitorDirectory.h
-        src/MonitorDirectory.cpp
-        include/MonitorBehavior.h
-        include/MonitorSharedMem.h)
-target_link_libraries(mailbox PRIVATE ${OpenCV_LIBS} ${Boost_LIBRARIES}  nlohmann_json::nlohmann_json )
+add_library( mailbox
+    src/include/image.h
+    src/include/macros.h
+    src/include/MonitorBehavior.h
+    src/include/MonitorDirectory.h
+    src/include/MonitorSharedMem.h
+    src/include/utils.h
+    src/cpp/MonitorDirectory.cpp
+)
+target_link_libraries(mailbox
+        PRIVATE
+        ${OpenCV_LIBS}
+        ${Boost_LIBRARIES}
+        nlohmann_json::nlohmann_json )
 
-add_executable(sobel_cv main/main_sobel.cpp)
-target_link_libraries(sobel_cv PRIVATE   mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
+add_executable(cv_sobel main/main_sobel.cpp
+        _sandbox/image_utils.h)
+target_link_libraries(cv_sobel PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
 
-add_executable(main_mailbox_sobel main/main_mailbox_sobel.cpp )
-target_link_libraries(main_mailbox_sobel PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
+add_executable(main_dir_mailbox_sobel main/main_dir_sobel.cpp)
+target_link_libraries(main_dir_mailbox_sobel PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
 
 add_executable(main_shmem_sobel main/main_shmem_sobel.cpp)
 target_link_libraries(main_shmem_sobel PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
-
-#add_executable(main_shmem_boost main/main_shmem_boost.cpp)
-#target_link_libraries(main_shmem_boost PRIVATE mailbox ${OpenCV_LIBS} ${Boost_LIBRARIES})
-
 
 
 find_package(GTest REQUIRED  )

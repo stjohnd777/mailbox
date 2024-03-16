@@ -57,3 +57,13 @@
 //
 //    return 0;
 //}
+
+
+## Set the source directory
+#set(SOURCE_DIR src/include)
+## Collect all files recursively under the src directory
+#file(GLOB_RECURSE SOURCE_FILES ${SOURCE_DIR}/*.h ${SOURCE_DIR}/*.cpp ${SOURCE_DIR}/*.c)
+## Set the language for the collected source files
+#set_source_files_properties(${SOURCE_FILES} PROPERTIES LANGUAGE CXX)
+## Create a target from the collected source files
+##add_library(mailbox  ${SOURCE_FILES})

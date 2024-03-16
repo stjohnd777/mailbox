@@ -10,11 +10,24 @@
 
 template<typename T, size_t COLS=IMAGE_WIDTH, size_t ROWS=IMAGE_HEIGHT >
 struct ImageGray {
-    T atom;
+    const T atom = 1;
     const size_t cols = COLS;
     const size_t rows = ROWS;
     T pixels[ROWS][COLS];
+
+    // Default constructor
+    ImageGray() = default;
+
+    // Move constructor
+    ImageGray(ImageGray&& other) noexcept
+            : atom(std::move(other.atom)), cols(other.cols), rows(other.rows) {
+        std::memcpy(pixels, other.pixels, sizeof(pixels));
+    }
+
+    // Delete the copy constructor
+    ImageGray(const ImageGray&) = delete;
 };
+
 typedef ImageGray<uint8_t , IMAGE_WIDTH, IMAGE_HEIGHT> ImageGray8;
 typedef ImageGray<uint16_t, IMAGE_WIDTH, IMAGE_HEIGHT> ImageGray16;
 

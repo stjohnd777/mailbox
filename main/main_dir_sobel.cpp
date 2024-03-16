@@ -11,9 +11,6 @@ using namespace std;
 #include <filesystem>
 namespace fs = std::filesystem;
 
-#include <boost/log/trivial.hpp>
-
-
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define EVENT_BUF_LEN (1024 * (EVENT_SIZE + 16))
 
@@ -63,21 +60,6 @@ MailboxParams handleCommandLineOptions(int argc, char** argv){
 std::string inbox = "/data/inbox";
 std::string outbox = "/data/outbox";
 
-using namespace boost;
-namespace logging = boost::log;
-void init_logging(){
-
-//    logging::add_file_log  (
-//        keywords::file_name = "sample_%N.log",                                        1
-//        keywords::rotation_size = 10 * 1024 * 1024,                                   2
-//        keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0), 3
-//        keywords::format = "[%TimeStamp%]: %Message%"                                 4
-//    );
-
-//    logging::core::get()->set_filter(logging::trivial::severity >= logging::trivial::info);
-}
-
-
 
 int main(int argc, char** argv) {
     // my sobel
@@ -93,7 +75,6 @@ int main(int argc, char** argv) {
     };
     auto params = handleCommandLineOptions(argc,argv);
 
-    init_logging();
 
     auto aInbox = new MonitorDirectory( params.inbox,params.outbox, imageProcessor);
 

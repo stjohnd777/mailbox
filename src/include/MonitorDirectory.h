@@ -80,26 +80,22 @@ public:
         // OnInit
         if( ! fs::exists(inbox) ) {
             auto msg = inbox + " does not exist";
-            //BOOST_LOG_TRIVIAL(fatal) <<msg;
             throw  InitException(msg);
         }
         if( ! fs::exists(outbox) ) {
             auto msg = outbox + " does not exist";
-            //BOOST_LOG_TRIVIAL(fatal) <<msg;
             throw  InitException(msg);
         }
 
         inotifyFd = inotify_init();
         if (inotifyFd == -1) {
             auto msg =  "inotify_init failed";
-            //BOOST_LOG_TRIVIAL(fatal) <<msg;
             throw InitException(msg);
         }
 
         watchDescriptor = inotify_add_watch(inotifyFd, inbox.c_str(), IN_CREATE | IN_MOVED_TO | IN_CLOSE_WRITE);
         if (watchDescriptor == -1){
             auto msg =  outbox + " inotify_add_watch failed, permissions?";
-            //BOOST_LOG_TRIVIAL(fatal) <<msg;
             throw  InitException( msg);
         }
     }
@@ -183,15 +179,12 @@ private:
     }
 
     void WriteToOutbox(cv::Mat mat){
-        // LOG
         if( ! mat.empty() ) {
             std::stringstream ss;
             string timeString = utils::GetCurrentTime();
             ss << outbox << "/" << timeString << "-processed" << ".png";
             cv::imwrite(ss.str(), mat);
-            // LOG
         }
-        // LOG
     }
 
     bool isRunning = false;
